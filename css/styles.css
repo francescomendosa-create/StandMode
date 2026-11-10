@@ -67,6 +67,64 @@ body {
   transform-origin: center center;
 }
 
+/* Install PWA (momentaneo / WebAPK fantasma) */
+.install-bar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(14px + var(--safe-b));
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(92vw, 420px);
+  pointer-events: none;
+}
+
+.install-bar[hidden] {
+  display: none !important;
+}
+
+.install-btn {
+  pointer-events: auto;
+  border: 0;
+  border-radius: 999px;
+  padding: 12px 22px;
+  font-size: 15px;
+  font-weight: 650;
+  color: #1a1208;
+  background: var(--accent);
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.install-btn:active {
+  filter: brightness(0.92);
+}
+
+.install-hint {
+  pointer-events: auto;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(20, 20, 20, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ddd;
+  font-size: 13px;
+  line-height: 1.35;
+  text-align: center;
+}
+
+.install-hint a {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+body.is-standalone .install-bar {
+  display: none !important;
+}
+
 /* Menu adattamento (momentaneo) */
 .zoom-menu,
 .nudge-menu {

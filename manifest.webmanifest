@@ -1,9 +1,9 @@
 {
-  "id": "/StandMode/?pwa=1.0.0",
+  "id": "./?pwa=clean-1",
   "name": "StandMode",
   "short_name": "StandMode",
   "description": "Schermo standby landscape: orologio, data e calendario",
-  "start_url": "./index.html",
+  "start_url": "./index.html?v=1.0.1",
   "scope": "./",
   "display": "standalone",
   "background_color": "#000000",

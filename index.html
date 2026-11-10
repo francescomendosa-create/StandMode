@@ -7,13 +7,37 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#000000" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>StandMode</title>
-  <link rel="stylesheet" href="css/styles.css?v=1.0.0" />
-  <link rel="manifest" href="manifest.webmanifest?v=1.0.0" />
+  <link rel="stylesheet" href="css/styles.css?v=1.0.1" />
+  <link rel="manifest" href="manifest.webmanifest?v=1.0.1" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <script>
+    /* Sblocca SW/cache vecchi una volta (come TagImpianto). */
+    (function () {
+      var V = "1.0.1";
+      var flag = "sm-sw-purge-" + V;
+      if (sessionStorage.getItem(flag)) return;
+      if (!("serviceWorker" in navigator)) return;
+      sessionStorage.setItem(flag, "1");
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        return Promise.all(regs.map(function (r) { return r.unregister(); }));
+      }).then(function () {
+        if (!window.caches) return;
+        return caches.keys().then(function (keys) {
+          return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        });
+      }).catch(function () {});
+    })();
+  </script>
 </head>
 <body>
+  <div class="install-bar" id="installBar">
+    <button type="button" class="install-btn" id="btnInstall">Installa app</button>
+    <p class="install-hint" id="installHint" hidden></p>
+  </div>
+
   <div class="zoom-menu" id="zoomMenu" hidden>
     <button type="button" class="adj-btn" id="zoomIn" aria-label="Ingrandisci">
       <svg viewBox="0 0 24 24" aria-hidden="true">

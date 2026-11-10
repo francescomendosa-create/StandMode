@@ -457,7 +457,70 @@
   window.addEventListener("orientationchange", () => setTimeout(onViewportChange, 80), { passive: true });
   window.visualViewport?.addEventListener("resize", onViewportChange, { passive: true });
 
+  /* —— Install PWA (come TagImpianto / MyMenu) —— */
+  const INSTALL_URL = "https://francescomendosa-create.github.io/StandModeApp/";
+  const APP_VERSION = "1.0.1";
+  const btnInstall = document.getElementById("btnInstall");
+  const installBar = document.getElementById("installBar");
+  const installHint = document.getElementById("installHint");
+  let deferredInstall = null;
+
+  function isStandalone() {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function onGhostHost() {
+    // Vecchio path GitHub Pages: Chrome può avere WebAPK fantasma
+    return /\/StandMode\/?/.test(location.pathname) && !/StandModeApp/i.test(location.pathname);
+  }
+
+  function hideInstallUi() {
+    if (installBar) installBar.hidden = true;
+  }
+
+  function showGhostHint() {
+    if (!installHint) return;
+    installHint.hidden = false;
+    installHint.innerHTML =
+      `Se Chrome dice “già installata”, usa il link pulito: ` +
+      `<a href="${INSTALL_URL}">StandModeApp</a>`;
+  }
+
+  if (isStandalone()) {
+    document.body.classList.add("is-standalone");
+    hideInstallUi();
+  } else {
+    if (onGhostHost()) showGhostHint();
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      deferredInstall = e;
+      if (installBar) installBar.hidden = false;
+      if (btnInstall) btnInstall.hidden = false;
+    });
+    window.addEventListener("appinstalled", () => {
+      deferredInstall = null;
+      hideInstallUi();
+    });
+    btnInstall?.addEventListener("click", async () => {
+      if (deferredInstall) {
+        deferredInstall.prompt();
+        const choice = await deferredInstall.userChoice;
+        deferredInstall = null;
+        if (choice.outcome === "accepted") hideInstallUi();
+        return;
+      }
+      // Su path fantasma / senza prompt: vai al mirror pulito
+      location.href = INSTALL_URL;
+    });
+  }
+
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" }).catch(() => {});
+    navigator.serviceWorker
+      .register(`./sw.js?v=${APP_VERSION}`, { updateViaCache: "none" })
+      .catch(() => {});
   }
 })();
