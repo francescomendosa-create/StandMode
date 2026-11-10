@@ -141,15 +141,31 @@
 
   const stand = document.getElementById("stand");
   const nudgeMenu = document.getElementById("nudgeMenu");
+  const zoomMenu = document.getElementById("zoomMenu");
   const nudgeUp = document.getElementById("nudgeUp");
   const nudgeDown = document.getElementById("nudgeDown");
+  const zoomIn = document.getElementById("zoomIn");
+  const zoomOut = document.getElementById("zoomOut");
   const NUDGE_KEY = "standmode-nudge-y";
+  const ZOOM_KEY = "standmode-zoom";
   const NUDGE_STEP = 2; // px millimetrici
+  const ZOOM_STEP = 0.02; // passi piccoli proporzionati
+  const ZOOM_MIN = 0.7;
+  const ZOOM_MAX = 1.35;
   let nudgeY = Number(localStorage.getItem(NUDGE_KEY) || 0) || 0;
+  let zoom = Number(localStorage.getItem(ZOOM_KEY) || 1) || 1;
+  zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
   let holdTimer = 0;
   let holdRepeat = 0;
   let longPressTimer = 0;
   let longPressFired = false;
+
+  function isAdjTarget(target) {
+    return Boolean(
+      (nudgeMenu && nudgeMenu.contains(target)) ||
+      (zoomMenu && zoomMenu.contains(target))
+    );
+  }
 
   function applyNudge() {
     if (!stand) return;
@@ -157,27 +173,42 @@
     localStorage.setItem(NUDGE_KEY, String(nudgeY));
   }
 
+  function applyZoom() {
+    if (!stand) return;
+    stand.style.setProperty("--zoom", String(Number(zoom.toFixed(3))));
+    localStorage.setItem(ZOOM_KEY, String(Number(zoom.toFixed(3))));
+  }
+
   function shiftNudge(delta) {
     nudgeY += delta;
     applyNudge();
   }
 
-  function openNudgeMenu() {
-    if (!nudgeMenu) return;
-    nudgeMenu.hidden = false;
+  function shiftZoom(delta) {
+    zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom + delta));
+    applyZoom();
   }
 
-  function closeNudgeMenu() {
-    if (!nudgeMenu) return;
-    nudgeMenu.hidden = true;
+  function openAdjMenus() {
+    if (nudgeMenu) nudgeMenu.hidden = false;
+    if (zoomMenu) zoomMenu.hidden = false;
   }
 
-  function startHold(delta) {
-    shiftNudge(delta);
+  function closeAdjMenus() {
+    if (nudgeMenu) nudgeMenu.hidden = true;
+    if (zoomMenu) zoomMenu.hidden = true;
+  }
+
+  function menusOpen() {
+    return (nudgeMenu && !nudgeMenu.hidden) || (zoomMenu && !zoomMenu.hidden);
+  }
+
+  function startHold(fn) {
+    fn();
     clearTimeout(holdTimer);
     clearInterval(holdRepeat);
     holdTimer = setTimeout(() => {
-      holdRepeat = setInterval(() => shiftNudge(delta), 40);
+      holdRepeat = setInterval(fn, 40);
     }, 280);
   }
 
@@ -189,12 +220,22 @@
   nudgeUp?.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    startHold(-NUDGE_STEP);
+    startHold(() => shiftNudge(-NUDGE_STEP));
   });
   nudgeDown?.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    startHold(NUDGE_STEP);
+    startHold(() => shiftNudge(NUDGE_STEP));
+  });
+  zoomIn?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    shiftZoom(ZOOM_STEP); // un piccolo passo per pressione
+  });
+  zoomOut?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    shiftZoom(-ZOOM_STEP);
   });
   ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => {
     nudgeUp?.addEventListener(ev, stopHold);
@@ -204,28 +245,25 @@
   // Blocca menu sistema (incolla / callout)
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
-    openNudgeMenu();
+    openAdjMenus();
   });
   document.addEventListener("selectstart", (e) => e.preventDefault());
 
   document.addEventListener("pointerdown", (e) => {
-    if (nudgeMenu && !nudgeMenu.hidden && !nudgeMenu.contains(e.target)) {
-      // tap fuori: chiudi (non durante long-press sul contenuto)
-    }
     longPressFired = false;
     clearTimeout(longPressTimer);
-    if (nudgeMenu?.contains(e.target)) return;
+    if (isAdjTarget(e.target)) return;
     longPressTimer = setTimeout(() => {
       longPressFired = true;
-      openNudgeMenu();
+      openAdjMenus();
     }, 480);
   }, { passive: true });
 
   document.addEventListener("pointerup", (e) => {
     clearTimeout(longPressTimer);
     if (longPressFired) return;
-    if (nudgeMenu && !nudgeMenu.hidden && !nudgeMenu.contains(e.target)) {
-      closeNudgeMenu();
+    if (menusOpen() && !isAdjTarget(e.target)) {
+      closeAdjMenus();
     }
   }, { passive: true });
 
@@ -258,6 +296,7 @@
   }
 
   applyNudge();
+  applyZoom();
   buildClockFace();
   renderCalendar(new Date());
   softFit();
