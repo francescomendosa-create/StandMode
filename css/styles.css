@@ -734,8 +734,65 @@ body.adj-open .panel.is-selected .part-inner {
   font-weight: 650;
 }
 
-/* Portrait / tablet stretto */
-@media (orientation: portrait), (max-width: 900px) and (orientation: landscape) {
+/* Landscape: SEMPRE 3 colonne per Classico (anche telefoni) */
+@media (orientation: landscape) {
+  .layout-classic {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr) minmax(0, 1fr);
+    grid-template-rows: 1fr;
+    align-items: center;
+    justify-items: stretch;
+    gap: clamp(8px, 1.8vw, 24px);
+  }
+
+  .layout-classic .clock {
+    width: min(96%, 78vh);
+  }
+
+  .layout-classic .date-panel {
+    align-items: flex-start;
+    padding-left: clamp(0.2vw, 1vw, 1.6vw);
+    text-align: left;
+  }
+
+  .layout-classic .date-top {
+    font-size: clamp(1.6rem, 8.5vh, 5.2rem);
+  }
+
+  .layout-classic .date-day {
+    font-size: clamp(4.5rem, 30vh, 16rem);
+  }
+
+  .layout-classic .cal {
+    width: min(100%, 48vh * 1.15);
+  }
+
+  .layout-aura {
+    grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.4fr);
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.05fr);
+  }
+
+  .layout-aura .weather-panel {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .layout-aura .aura-cal {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .layout-aura .aura-clock {
+    grid-column: 2;
+    grid-row: 1 / -1;
+  }
+
+  .layout-aura .clock {
+    width: min(100%, 82vh);
+  }
+}
+
+/* Portrait only: stack */
+@media (orientation: portrait) {
   .layout-classic {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
@@ -765,9 +822,7 @@ body.adj-open .panel.is-selected .part-inner {
   .layout-classic .cal {
     width: min(72vw, 320px);
   }
-}
 
-@media (orientation: portrait) {
   .layout-aura {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
@@ -784,25 +839,5 @@ body.adj-open .panel.is-selected .part-inner {
 
   .layout-aura .clock {
     width: min(70vw, 46vh);
-  }
-}
-
-/* Tablet landscape: evita orologio enorme / overflow */
-@media (orientation: landscape) and (min-width: 900px) {
-  .layout-classic {
-    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.9fr) minmax(0, 1fr);
-    gap: clamp(12px, 2vw, 28px);
-  }
-
-  .layout-classic .clock {
-    width: min(92%, 72vh);
-  }
-
-  .layout-aura {
-    grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.35fr);
-  }
-
-  .layout-aura .clock {
-    width: min(100%, 78vh);
   }
 }

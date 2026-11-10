@@ -30,9 +30,8 @@
   const weatherDesc = document.getElementById("weatherDesc");
   const weatherMeta = document.getElementById("weatherMeta");
 
-  const PREFS_KEY = "standmode-prefs-v3";
-  const PREFS_KEY_V2 = "standmode-prefs-v2";
-  const PREFS_KEY_V1 = "standmode-prefs-v1";
+  const PREFS_KEY = "standmode-prefs-v4";
+  const PREFS_KEY_OLD = ["standmode-prefs-v3", "standmode-prefs-v2", "standmode-prefs-v1"];
   const LAYOUT_KEY = "standmode-layout";
   const PARTS = ["all", "clock", "date", "cal", "weather"];
   const DEFAULT_ACCENT = "#c59a63";
@@ -66,7 +65,26 @@
       { id: "text", label: "Testo", fallback: "#333333" },
     ],
   };
-  // Default Aura: lancette nere stile iOS / Pixel
+  // Colori partenza Classico (visibili su nero)
+  const CLASSIC_CLOCK_DEFAULTS = {
+    frame: "#ffffff",
+    minute: "#ffffff",
+    hour: "#ffffff",
+    second: "#c59a63",
+    numbers: "#ffffff",
+  };
+  const CLASSIC_DATE_DEFAULTS = {
+    generic: "#c59a63",
+    day: "#ffffff",
+    week: "#c59a63",
+    month: "#b0b0b0",
+  };
+  const CLASSIC_CAL_DEFAULTS = {
+    generic: "#c59a63",
+    days: "#ffffff",
+    today: "#c59a63",
+  };
+  // Colori partenza Aura (visibili su oro)
   const AURA_CLOCK_DEFAULTS = {
     frame: "#111111",
     minute: "#111111",
@@ -79,12 +97,18 @@
     days: "#111111",
     today: "#ffffff",
   };
+  const AURA_WEATHER_DEFAULTS = {
+    generic: "#111111",
+    temp: "#111111",
+    icon: "#111111",
+    text: "#333333",
+  };
 
   const NUDGE_STEP = 2;
   const ZOOM_STEP = 0.02;
   const ZOOM_MIN = 0.55;
   const ZOOM_MAX = 1.6;
-  const APP_VERSION = "1.1.1";
+  const APP_VERSION = "1.1.2";
   const INSTALL_URL = "https://francescomendosa-create.github.io/StandModeApp/";
 
   let layout = localStorage.getItem(LAYOUT_KEY) === "aura" ? "aura" : "classic";
@@ -224,7 +248,13 @@
   function loadAllPrefs() {
     const empty = { landscape: defaultOrientation(), portrait: defaultOrientation() };
     try {
-      const raw = localStorage.getItem(PREFS_KEY) || localStorage.getItem(PREFS_KEY_V2) || localStorage.getItem(PREFS_KEY_V1);
+      let raw = localStorage.getItem(PREFS_KEY);
+      if (!raw) {
+        for (const k of PREFS_KEY_OLD) {
+          raw = localStorage.getItem(k);
+          if (raw) break;
+        }
+      }
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
@@ -239,39 +269,80 @@
   const prefs = loadAllPrefs();
   let mode = currentOrientation();
 
-  function makeAuraBundle() {
+  function makeClassicBundle(keepNudge = null) {
     const clock = defaultPart("clock");
-    clock.colors = { ...clock.colors, ...AURA_CLOCK_DEFAULTS };
+    clock.colors = { ...CLASSIC_CLOCK_DEFAULTS };
+    const date = defaultPart("date");
+    date.colors = { ...CLASSIC_DATE_DEFAULTS };
     const cal = defaultPart("cal");
-    cal.colors = { ...cal.colors, ...AURA_CAL_DEFAULTS };
+    cal.colors = { ...CLASSIC_CAL_DEFAULTS };
+    const all = defaultPart("all");
+    if (keepNudge) {
+      ["all", "clock", "date", "cal"].forEach((k) => {
+        const src = keepNudge[k];
+        const dst = { all, clock, date, cal }[k];
+        if (src && dst) {
+          dst.nudgeX = Number(src.nudgeX) || 0;
+          dst.nudgeY = Number(src.nudgeY) || 0;
+          dst.zoom = clampZoom(src.zoom ?? 1);
+        }
+      });
+    }
     return {
-      all: defaultPart("all"),
+      all,
       clock,
-      date: defaultPart("date"),
+      date,
       cal,
       weather: defaultPart("weather"),
     };
   }
 
-  function ensureByLayout(oriPrefs) {
-    if (!oriPrefs.byLayout?.classic || !oriPrefs.byLayout?.aura) {
-      oriPrefs.byLayout = {
-        classic: {
-          all: oriPrefs.all || defaultPart("all"),
-          clock: oriPrefs.clock || defaultPart("clock"),
-          date: oriPrefs.date || defaultPart("date"),
-          cal: oriPrefs.cal || defaultPart("cal"),
-          weather: oriPrefs.weather || defaultPart("weather"),
-        },
-        aura: makeAuraBundle(),
-      };
+  function makeAuraBundle(keepNudge = null) {
+    const clock = defaultPart("clock");
+    clock.colors = { ...AURA_CLOCK_DEFAULTS };
+    const cal = defaultPart("cal");
+    cal.colors = { ...AURA_CAL_DEFAULTS };
+    const weather = defaultPart("weather");
+    weather.colors = { ...AURA_WEATHER_DEFAULTS };
+    const all = defaultPart("all");
+    if (keepNudge) {
+      ["all", "clock", "cal", "weather"].forEach((k) => {
+        const src = keepNudge[k];
+        const dst = { all, clock, cal, weather }[k];
+        if (src && dst) {
+          dst.nudgeX = Number(src.nudgeX) || 0;
+          dst.nudgeY = Number(src.nudgeY) || 0;
+          dst.zoom = clampZoom(src.zoom ?? 1);
+        }
+      });
     }
-    // ripara bundle aura corrotto / colori invisibili
-    const aura = oriPrefs.byLayout.aura;
-    if (!aura.clock?.colors) aura.clock = makeAuraBundle().clock;
-    if (!aura.cal?.colors) aura.cal = makeAuraBundle().cal;
-    if (!aura.weather?.colors) aura.weather = makeAuraBundle().weather;
-    if (!aura.all) aura.all = defaultPart("all");
+    return {
+      all,
+      clock,
+      date: defaultPart("date"),
+      cal,
+      weather,
+    };
+  }
+
+  function ensureByLayout(oriPrefs) {
+    // Momentaneo: forza colori di partenza visibili (Classico + Aura)
+    const resetFlag = "standmode-colors-reset-v4";
+    const needReset = !localStorage.getItem(resetFlag);
+    if (!oriPrefs.byLayout?.classic || !oriPrefs.byLayout?.aura || needReset) {
+      const prevClassic = oriPrefs.byLayout?.classic || {
+        all: oriPrefs.all,
+        clock: oriPrefs.clock,
+        date: oriPrefs.date,
+        cal: oriPrefs.cal,
+      };
+      const prevAura = oriPrefs.byLayout?.aura || null;
+      oriPrefs.byLayout = {
+        classic: makeClassicBundle(prevClassic),
+        aura: makeAuraBundle(prevAura),
+      };
+      localStorage.setItem(resetFlag, "1");
+    }
     return oriPrefs.byLayout;
   }
 
@@ -324,43 +395,46 @@
     el.style.setProperty("--part-zoom", String(Number(part.zoom.toFixed(3))));
 
     if (partName === "clock") {
-      const base = layout === "aura" ? { ...AURA_CLOCK_DEFAULTS, ...c } : c;
-      el.style.setProperty("--clock-frame", normalizeHex(base.frame, layout === "aura" ? "#111111" : "#ffffff"));
-      el.style.setProperty("--clock-hour", normalizeHex(base.hour, layout === "aura" ? "#111111" : "#ffffff"));
-      el.style.setProperty("--clock-minute", normalizeHex(base.minute, layout === "aura" ? "#111111" : "#ffffff"));
-      el.style.setProperty("--clock-second", normalizeHex(base.second, layout === "aura" ? "#ffffff" : DEFAULT_ACCENT));
-      el.style.setProperty("--clock-numbers", normalizeHex(base.numbers, layout === "aura" ? "#111111" : "#ffffff"));
-      el.style.setProperty("--accent-ink", inkFor(normalizeHex(base.second, layout === "aura" ? "#ffffff" : DEFAULT_ACCENT)));
+      const fb = layout === "aura" ? AURA_CLOCK_DEFAULTS : CLASSIC_CLOCK_DEFAULTS;
+      const base = { ...fb, ...c };
+      el.style.setProperty("--clock-frame", normalizeHex(base.frame, fb.frame));
+      el.style.setProperty("--clock-hour", normalizeHex(base.hour, fb.hour));
+      el.style.setProperty("--clock-minute", normalizeHex(base.minute, fb.minute));
+      el.style.setProperty("--clock-second", normalizeHex(base.second, fb.second));
+      el.style.setProperty("--clock-numbers", normalizeHex(base.numbers, fb.numbers));
+      el.style.setProperty("--accent-ink", inkFor(normalizeHex(base.second, fb.second)));
     }
 
     if (partName === "date") {
-      const generic = normalizeHex(c.generic, DEFAULT_ACCENT);
+      const fb = CLASSIC_DATE_DEFAULTS;
+      const base = { ...fb, ...c };
+      const generic = normalizeHex(base.generic, fb.generic);
       el.style.setProperty("--accent", generic);
-      el.style.setProperty("--date-week", normalizeHex(c.week, generic));
-      el.style.setProperty("--date-month", normalizeHex(c.month, "#b0b0b0"));
-      el.style.setProperty("--date-day", normalizeHex(c.day, "#ffffff"));
+      el.style.setProperty("--date-week", normalizeHex(base.week, fb.week));
+      el.style.setProperty("--date-month", normalizeHex(base.month, fb.month));
+      el.style.setProperty("--date-day", normalizeHex(base.day, fb.day));
       el.style.setProperty("--muted", mixHex(generic, "#8a8a8a", 0.55));
       el.style.setProperty("--accent-ink", inkFor(generic));
     }
 
     if (partName === "cal") {
-      const genFb = layout === "aura" ? AURA_CAL_DEFAULTS.generic : DEFAULT_ACCENT;
-      const daysFb = layout === "aura" ? AURA_CAL_DEFAULTS.days : "#ffffff";
-      const todayFb = layout === "aura" ? AURA_CAL_DEFAULTS.today : DEFAULT_ACCENT;
-      const generic = normalizeHex(c.generic, genFb);
-      const today = normalizeHex(c.today, todayFb);
+      const fb = layout === "aura" ? AURA_CAL_DEFAULTS : CLASSIC_CAL_DEFAULTS;
+      const base = { ...fb, ...c };
+      const generic = normalizeHex(base.generic, fb.generic);
+      const today = normalizeHex(base.today, fb.today);
       el.style.setProperty("--accent", generic);
       el.style.setProperty("--muted", mixHex(generic, layout === "aura" ? "#444444" : "#8a8a8a", 0.45));
-      el.style.setProperty("--cal-days", normalizeHex(c.days, daysFb));
+      el.style.setProperty("--cal-days", normalizeHex(base.days, fb.days));
       el.style.setProperty("--cal-today", today);
       el.style.setProperty("--accent-ink", inkFor(today));
     }
 
     if (partName === "weather") {
-      const generic = normalizeHex(c.generic, "#111111");
-      el.style.setProperty("--weather-temp", normalizeHex(c.temp, generic));
-      el.style.setProperty("--weather-icon", normalizeHex(c.icon, generic));
-      el.style.setProperty("--weather-desc", normalizeHex(c.text, "#333333"));
+      const fb = AURA_WEATHER_DEFAULTS;
+      const base = { ...fb, ...c };
+      el.style.setProperty("--weather-temp", normalizeHex(base.temp, fb.temp));
+      el.style.setProperty("--weather-icon", normalizeHex(base.icon, fb.icon));
+      el.style.setProperty("--weather-desc", normalizeHex(base.text, fb.text));
     }
   }
 
