@@ -146,15 +146,63 @@
   const nudgeDown = document.getElementById("nudgeDown");
   const zoomIn = document.getElementById("zoomIn");
   const zoomOut = document.getElementById("zoomOut");
-  const NUDGE_KEY = "standmode-nudge-y";
-  const ZOOM_KEY = "standmode-zoom";
+  const PREFS_KEY = "standmode-prefs-v1";
   const NUDGE_STEP = 2; // px millimetrici
   const ZOOM_STEP = 0.02; // passi piccoli proporzionati
   const ZOOM_MIN = 0.7;
   const ZOOM_MAX = 1.35;
-  let nudgeY = Number(localStorage.getItem(NUDGE_KEY) || 0) || 0;
-  let zoom = Number(localStorage.getItem(ZOOM_KEY) || 1) || 1;
-  zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom));
+
+  function clampZoom(z) {
+    return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(z) || 1));
+  }
+
+  function currentOrientation() {
+    const vv = window.visualViewport;
+    const w = vv?.width ?? window.innerWidth;
+    const h = vv?.height ?? window.innerHeight;
+    return w >= h ? "landscape" : "portrait";
+  }
+
+  function defaultModePrefs() {
+    return { nudgeY: 0, zoom: 1 };
+  }
+
+  function loadAllPrefs() {
+    const empty = {
+      landscape: defaultModePrefs(),
+      portrait: defaultModePrefs(),
+    };
+    try {
+      const raw = localStorage.getItem(PREFS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          landscape: {
+            nudgeY: Number(parsed?.landscape?.nudgeY) || 0,
+            zoom: clampZoom(parsed?.landscape?.zoom ?? 1),
+          },
+          portrait: {
+            nudgeY: Number(parsed?.portrait?.nudgeY) || 0,
+            zoom: clampZoom(parsed?.portrait?.zoom ?? 1),
+          },
+        };
+      }
+    } catch (_) { /* ignore */ }
+
+    // migrazione chiavi vecchie (unica per entrambe le orientazioni)
+    const legacyNudge = Number(localStorage.getItem("standmode-nudge-y") || 0) || 0;
+    const legacyZoom = clampZoom(localStorage.getItem("standmode-zoom") || 1);
+    if (legacyNudge !== 0 || legacyZoom !== 1) {
+      empty.landscape = { nudgeY: legacyNudge, zoom: legacyZoom };
+      empty.portrait = { nudgeY: legacyNudge, zoom: legacyZoom };
+    }
+    return empty;
+  }
+
+  const prefs = loadAllPrefs();
+  let mode = currentOrientation();
+  let nudgeY = prefs[mode].nudgeY;
+  let zoom = prefs[mode].zoom;
   let holdTimer = 0;
   let holdRepeat = 0;
   let longPressTimer = 0;
@@ -167,16 +215,43 @@
     );
   }
 
+  function savePrefs() {
+    prefs[mode] = {
+      nudgeY,
+      zoom: clampZoom(zoom),
+    };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+  }
+
   function applyNudge() {
     if (!stand) return;
     stand.style.setProperty("--nudge-y", `${nudgeY}px`);
-    localStorage.setItem(NUDGE_KEY, String(nudgeY));
+    savePrefs();
   }
 
   function applyZoom() {
     if (!stand) return;
+    zoom = clampZoom(zoom);
     stand.style.setProperty("--zoom", String(Number(zoom.toFixed(3))));
-    localStorage.setItem(ZOOM_KEY, String(Number(zoom.toFixed(3))));
+    savePrefs();
+  }
+
+  function applyModePrefs() {
+    nudgeY = prefs[mode].nudgeY;
+    zoom = clampZoom(prefs[mode].zoom);
+    if (!stand) return;
+    stand.style.setProperty("--nudge-y", `${nudgeY}px`);
+    stand.style.setProperty("--zoom", String(Number(zoom.toFixed(3))));
+  }
+
+  function syncOrientationPrefs() {
+    const next = currentOrientation();
+    if (next === mode) return;
+    // salva quella corrente prima di cambiare
+    prefs[mode] = { nudgeY, zoom: clampZoom(zoom) };
+    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    mode = next;
+    applyModePrefs();
   }
 
   function shiftNudge(delta) {
@@ -185,7 +260,7 @@
   }
 
   function shiftZoom(delta) {
-    zoom = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom + delta));
+    zoom = clampZoom(zoom + delta);
     applyZoom();
   }
 
@@ -295,16 +370,20 @@
     });
   }
 
-  applyNudge();
-  applyZoom();
+  applyModePrefs();
   buildClockFace();
   renderCalendar(new Date());
   softFit();
   requestAnimationFrame(tick);
 
-  window.addEventListener("resize", softFit, { passive: true });
-  window.addEventListener("orientationchange", () => setTimeout(softFit, 80), { passive: true });
-  window.visualViewport?.addEventListener("resize", softFit, { passive: true });
+  function onViewportChange() {
+    syncOrientationPrefs();
+    softFit();
+  }
+
+  window.addEventListener("resize", onViewportChange, { passive: true });
+  window.addEventListener("orientationchange", () => setTimeout(onViewportChange, 80), { passive: true });
+  window.visualViewport?.addEventListener("resize", onViewportChange, { passive: true });
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
