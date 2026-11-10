@@ -131,12 +131,13 @@ body.is-standalone .install-bar {
   left: calc(10px + var(--safe-l));
   bottom: calc(10px + var(--safe-b));
   z-index: 50;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 8px;
+  max-width: min(92vw, 280px);
   padding: 10px;
   border-radius: 14px;
-  background: rgba(20, 20, 20, 0.72);
+  background: rgba(20, 20, 20, 0.78);
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -144,6 +145,36 @@ body.is-standalone .install-bar {
 
 .color-menu[hidden] {
   display: none !important;
+}
+
+.color-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.color-tab {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  color: #ddd;
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.color-tab.is-active {
+  color: #1a1208;
+  background: var(--accent);
+}
+
+.color-dots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
 }
 
 .color-dot {
@@ -247,6 +278,16 @@ body.adj-open .panel.is-selected .part-inner {
   --muted: #8a8a8a;
   --accent-ink: #1a1208;
   --month-muted: #b0b0b0;
+  --clock-frame: #ffffff;
+  --clock-hour: #ffffff;
+  --clock-minute: #ffffff;
+  --clock-second: #c59a63;
+  --clock-numbers: #ffffff;
+  --date-day: #ffffff;
+  --date-week: #c59a63;
+  --date-month: #b0b0b0;
+  --cal-days: #ffffff;
+  --cal-today: #c59a63;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -294,7 +335,7 @@ body.adj-open .panel.is-selected .part-inner {
 }
 
 .tick {
-  stroke: var(--fg);
+  stroke: var(--clock-frame);
   stroke-linecap: round;
 }
 
@@ -308,7 +349,7 @@ body.adj-open .panel.is-selected .part-inner {
 }
 
 .num {
-  fill: var(--fg);
+  fill: var(--clock-numbers);
   font-size: 28px;
   font-weight: 500;
   text-anchor: middle;
@@ -316,16 +357,20 @@ body.adj-open .panel.is-selected .part-inner {
   letter-spacing: -0.02em;
 }
 
-.hand-fill {
-  fill: var(--fg);
+.hand-hour {
+  fill: var(--clock-hour);
+}
+
+.hand-minute {
+  fill: var(--clock-minute);
 }
 
 .hand-second {
-  stroke: var(--accent);
+  stroke: var(--clock-second);
 }
 
 .hub-outer {
-  fill: var(--accent);
+  fill: var(--clock-second);
 }
 
 .hub-inner {
@@ -350,11 +395,11 @@ body.adj-open .panel.is-selected .part-inner {
 }
 
 .date-weekday {
-  color: var(--accent);
+  color: var(--date-week);
 }
 
 .date-month-short {
-  color: var(--month-muted);
+  color: var(--date-month);
 }
 
 .date-day {
@@ -363,7 +408,7 @@ body.adj-open .panel.is-selected .part-inner {
   font-weight: 620;
   line-height: 0.86;
   letter-spacing: -0.045em;
-  color: var(--fg);
+  color: var(--date-day);
 }
 
 /* —— Calendar —— */
@@ -406,7 +451,7 @@ body.adj-open .panel.is-selected .part-inner {
   aspect-ratio: 1;
   display: grid;
   place-items: center;
-  color: var(--fg);
+  color: var(--cal-days);
   font-size: clamp(0.95rem, 2.9vh, 1.45rem);
   font-weight: 500;
   border-radius: 50%;
@@ -417,7 +462,7 @@ body.adj-open .panel.is-selected .part-inner {
 }
 
 .cal-cell.is-today {
-  background: var(--accent);
+  background: var(--cal-today);
   color: var(--accent-ink);
   font-weight: 650;
 }

@@ -150,6 +150,8 @@
   const zoomIn = document.getElementById("zoomIn");
   const zoomOut = document.getElementById("zoomOut");
   const colorMenu = document.getElementById("colorMenu");
+  const colorTabsEl = document.getElementById("colorTabs");
+  const colorDotsEl = document.getElementById("colorDots");
   const partEls = {
     clock: document.querySelector('[data-part="clock"]'),
     date: document.querySelector('[data-part="date"]'),
@@ -159,11 +161,11 @@
   const PREFS_KEY = "standmode-prefs-v2";
   const PREFS_KEY_V1 = "standmode-prefs-v1";
   const PARTS = ["all", "clock", "date", "cal"];
-  const DEFAULT_COLOR = "#c59a63";
+  const DEFAULT_ACCENT = "#c59a63";
   const COLOR_DOTS = [
-    "#c59a63", // oro (default)
     "#ffffff",
     "#e8e8e8",
+    "#c59a63",
     "#fbbf24",
     "#fb923c",
     "#f87171",
@@ -174,6 +176,26 @@
     "#4ade80",
     "#a3e635",
   ];
+  const COLOR_TABS = {
+    clock: [
+      { id: "frame", label: "Cornice", fallback: "#ffffff" },
+      { id: "minute", label: "Lancetta minuti", fallback: "#ffffff" },
+      { id: "hour", label: "Lancetta ore", fallback: "#ffffff" },
+      { id: "second", label: "Lancetta secondi", fallback: DEFAULT_ACCENT },
+      { id: "numbers", label: "Numeri", fallback: "#ffffff" },
+    ],
+    date: [
+      { id: "generic", label: "Generico", fallback: DEFAULT_ACCENT },
+      { id: "day", label: "Giorno", fallback: "#ffffff" },
+      { id: "week", label: "Settimana", fallback: DEFAULT_ACCENT },
+      { id: "month", label: "Mesi", fallback: "#b0b0b0" },
+    ],
+    cal: [
+      { id: "generic", label: "Generico", fallback: DEFAULT_ACCENT },
+      { id: "days", label: "Giorni", fallback: "#ffffff" },
+      { id: "today", label: "Oggi", fallback: DEFAULT_ACCENT },
+    ],
+  };
   const NUDGE_STEP = 2;
   const ZOOM_STEP = 0.02;
   const ZOOM_MIN = 0.55;
@@ -183,13 +205,20 @@
     return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(z) || 1));
   }
 
-  function normalizeHex(hex) {
+  function normalizeHex(hex, fallback = DEFAULT_ACCENT) {
     const h = String(hex || "").trim();
     if (/^#[0-9a-fA-F]{6}$/.test(h)) return h.toLowerCase();
     if (/^#[0-9a-fA-F]{3}$/.test(h)) {
       return `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}`.toLowerCase();
     }
-    return DEFAULT_COLOR;
+    const fb = String(fallback || "").trim();
+    if (fb && fb !== h) {
+      if (/^#[0-9a-fA-F]{6}$/.test(fb)) return fb.toLowerCase();
+      if (/^#[0-9a-fA-F]{3}$/.test(fb)) {
+        return `#${fb[1]}${fb[1]}${fb[2]}${fb[2]}${fb[3]}${fb[3]}`.toLowerCase();
+      }
+    }
+    return DEFAULT_ACCENT;
   }
 
   function hexToRgb(hex) {
@@ -225,37 +254,62 @@
     return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
   }
 
-  function themeFromAccent(accent) {
-    const a = normalizeHex(accent);
-    return {
-      accent: a,
-      // settimana / etichette secondarie: accento smorzato verso grigio
-      muted: mixHex(a, "#8a8a8a", 0.55),
-      // mese corto (data): più chiaro/grigio come prima
-      monthMuted: mixHex(a, "#c8c8c8", 0.62),
-      accentInk: luminance(a) > 0.62 ? "#1a1208" : "#0b0b0b",
-    };
+  function inkFor(hex) {
+    return luminance(hex) > 0.62 ? "#1a1208" : "#0b0b0b";
   }
 
-  function defaultPart() {
-    return { nudgeX: 0, nudgeY: 0, zoom: 1, color: DEFAULT_COLOR };
+  function defaultColorsFor(partName) {
+    const tabs = COLOR_TABS[partName] || [];
+    const out = {};
+    tabs.forEach((t) => {
+      out[t.id] = normalizeHex(t.fallback, t.fallback);
+    });
+    return out;
+  }
+
+  function defaultPart(partName = "all") {
+    return {
+      nudgeX: 0,
+      nudgeY: 0,
+      zoom: 1,
+      colors: defaultColorsFor(partName),
+    };
   }
 
   function defaultOrientation() {
     return {
-      all: defaultPart(),
-      clock: defaultPart(),
-      date: defaultPart(),
-      cal: defaultPart(),
+      all: defaultPart("all"),
+      clock: defaultPart("clock"),
+      date: defaultPart("date"),
+      cal: defaultPart("cal"),
     };
   }
 
-  function normalizePart(raw) {
+  function normalizePart(raw, partName) {
+    const base = defaultPart(partName);
+    const legacy = raw?.color ? normalizeHex(raw.color) : null;
+    const colors = { ...base.colors };
+    if (raw?.colors && typeof raw.colors === "object") {
+      Object.keys(colors).forEach((k) => {
+        if (raw.colors[k]) colors[k] = normalizeHex(raw.colors[k], colors[k]);
+      });
+    } else if (legacy) {
+      // migrazione: vecchio colore unico → slot generico / secondi
+      if (partName === "clock") colors.second = legacy;
+      if (partName === "date") {
+        colors.generic = legacy;
+        colors.week = legacy;
+      }
+      if (partName === "cal") {
+        colors.generic = legacy;
+        colors.today = legacy;
+      }
+    }
     return {
       nudgeX: Number(raw?.nudgeX) || 0,
       nudgeY: Number(raw?.nudgeY) || 0,
       zoom: clampZoom(raw?.zoom ?? 1),
-      color: normalizeHex(raw?.color || DEFAULT_COLOR),
+      colors,
     };
   }
 
@@ -267,12 +321,12 @@
         nudgeX: raw.nudgeX || 0,
         nudgeY: raw.nudgeY || 0,
         zoom: raw.zoom ?? 1,
-      });
+      }, "all");
       return base;
     }
     const base = defaultOrientation();
     for (const key of PARTS) {
-      base[key] = normalizePart(raw?.[key]);
+      base[key] = normalizePart(raw?.[key], key);
     }
     return base;
   }
@@ -312,6 +366,7 @@
   const prefs = loadAllPrefs();
   let mode = currentOrientation();
   let selected = null; // null = tutto il contenuto
+  let colorSlot = null; // tab colore attivo (frame, day, …)
   let holdTimer = 0;
   let holdRepeat = 0;
   let longPressTimer = 0;
@@ -323,6 +378,24 @@
 
   function activePart() {
     return prefs[mode][activeKey()];
+  }
+
+  function tabsForSelected() {
+    return COLOR_TABS[selected] || [];
+  }
+
+  function currentColorSlot() {
+    const tabs = tabsForSelected();
+    if (!tabs.length) return null;
+    if (colorSlot && tabs.some((t) => t.id === colorSlot)) return colorSlot;
+    return tabs[0].id;
+  }
+
+  function colorForSlot(partName, slotId) {
+    const part = prefs[mode][partName];
+    const tab = (COLOR_TABS[partName] || []).find((t) => t.id === slotId);
+    const fallback = tab?.fallback || DEFAULT_ACCENT;
+    return normalizeHex(part?.colors?.[slotId], fallback);
   }
 
   function isAdjTarget(target) {
@@ -338,16 +411,41 @@
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   }
 
-  function paintPart(el, part) {
+  function paintPart(el, part, partName) {
     if (!el) return;
-    const theme = themeFromAccent(part.color || DEFAULT_COLOR);
+    const c = part.colors || defaultColorsFor(partName);
     el.style.setProperty("--part-x", `${part.nudgeX}px`);
     el.style.setProperty("--part-y", `${part.nudgeY}px`);
     el.style.setProperty("--part-zoom", String(Number(part.zoom.toFixed(3))));
-    el.style.setProperty("--accent", theme.accent);
-    el.style.setProperty("--muted", theme.muted);
-    el.style.setProperty("--month-muted", theme.monthMuted);
-    el.style.setProperty("--accent-ink", theme.accentInk);
+
+    if (partName === "clock") {
+      el.style.setProperty("--clock-frame", normalizeHex(c.frame, "#ffffff"));
+      el.style.setProperty("--clock-hour", normalizeHex(c.hour, "#ffffff"));
+      el.style.setProperty("--clock-minute", normalizeHex(c.minute, "#ffffff"));
+      el.style.setProperty("--clock-second", normalizeHex(c.second, DEFAULT_ACCENT));
+      el.style.setProperty("--clock-numbers", normalizeHex(c.numbers, "#ffffff"));
+      el.style.setProperty("--accent-ink", inkFor(c.second || DEFAULT_ACCENT));
+    }
+
+    if (partName === "date") {
+      const generic = normalizeHex(c.generic, DEFAULT_ACCENT);
+      el.style.setProperty("--accent", generic);
+      el.style.setProperty("--date-week", normalizeHex(c.week, generic));
+      el.style.setProperty("--date-month", normalizeHex(c.month, "#b0b0b0"));
+      el.style.setProperty("--date-day", normalizeHex(c.day, "#ffffff"));
+      el.style.setProperty("--muted", mixHex(generic, "#8a8a8a", 0.55));
+      el.style.setProperty("--accent-ink", inkFor(generic));
+    }
+
+    if (partName === "cal") {
+      const generic = normalizeHex(c.generic, DEFAULT_ACCENT);
+      const today = normalizeHex(c.today, generic);
+      el.style.setProperty("--accent", generic);
+      el.style.setProperty("--muted", mixHex(generic, "#8a8a8a", 0.55));
+      el.style.setProperty("--cal-days", normalizeHex(c.days, "#ffffff"));
+      el.style.setProperty("--cal-today", today);
+      el.style.setProperty("--accent-ink", inkFor(today));
+    }
   }
 
   function applyAllTransforms() {
@@ -356,10 +454,10 @@
     stand.style.setProperty("--nudge-x", `${all.nudgeX}px`);
     stand.style.setProperty("--nudge-y", `${all.nudgeY}px`);
     stand.style.setProperty("--zoom", String(Number(all.zoom.toFixed(3))));
-    paintPart(partEls.clock, prefs[mode].clock);
-    paintPart(partEls.date, prefs[mode].date);
-    paintPart(partEls.cal, prefs[mode].cal);
-    syncColorDots();
+    paintPart(partEls.clock, prefs[mode].clock, "clock");
+    paintPart(partEls.date, prefs[mode].date, "date");
+    paintPart(partEls.cal, prefs[mode].cal, "cal");
+    syncColorUi();
   }
 
   function persistActive() {
@@ -380,8 +478,8 @@
     persistActive();
   }
 
-  function buildColorMenu() {
-    if (!colorMenu || colorMenu.childElementCount) return;
+  function buildColorDots() {
+    if (!colorDotsEl || colorDotsEl.childElementCount) return;
     COLOR_DOTS.forEach((hex) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -394,35 +492,66 @@
         e.stopPropagation();
         setActiveColor(hex);
       });
-      colorMenu.appendChild(btn);
+      colorDotsEl.appendChild(btn);
+    });
+  }
+
+  function rebuildColorTabs() {
+    if (!colorTabsEl) return;
+    colorTabsEl.replaceChildren();
+    const tabs = tabsForSelected();
+    const active = currentColorSlot();
+    tabs.forEach((tab) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "color-tab" + (tab.id === active ? " is-active" : "");
+      btn.textContent = tab.label;
+      btn.dataset.slot = tab.id;
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        colorSlot = tab.id;
+        rebuildColorTabs();
+        syncColorDots();
+      });
+      colorTabsEl.appendChild(btn);
     });
   }
 
   function syncColorDots() {
-    if (!colorMenu) return;
-    const current = normalizeHex(activePart().color || DEFAULT_COLOR);
-    colorMenu.querySelectorAll(".color-dot").forEach((btn) => {
-      btn.classList.toggle("is-active", normalizeHex(btn.dataset.color) === current);
+    if (!colorDotsEl || !selected) return;
+    const slot = currentColorSlot();
+    const current = colorForSlot(selected, slot);
+    colorDotsEl.querySelectorAll(".color-dot").forEach((btn) => {
+      btn.classList.toggle("is-active", normalizeHex(btn.dataset.color, current) === current);
     });
+  }
+
+  function syncColorUi() {
+    if (!colorMenu || colorMenu.hidden) return;
+    rebuildColorTabs();
+    syncColorDots();
   }
 
   function updateColorMenuVisibility() {
     if (!colorMenu) return;
     const show = menusOpen() && Boolean(selected);
     colorMenu.hidden = !show;
-    if (show) syncColorDots();
+    if (show) {
+      const tabs = tabsForSelected();
+      colorSlot = tabs[0]?.id || null;
+      rebuildColorTabs();
+      syncColorDots();
+    }
   }
 
   function setActiveColor(hex) {
-    const key = activeKey();
-    if (key === "all") {
-      // senza selezione non dovrebbe arrivare qui; se arriva, applica a tutte le parti
-      for (const p of ["clock", "date", "cal"]) {
-        prefs[mode][p].color = normalizeHex(hex);
-      }
-    } else {
-      prefs[mode][key].color = normalizeHex(hex);
-    }
+    if (!selected) return;
+    const slot = currentColorSlot();
+    if (!slot) return;
+    const part = prefs[mode][selected];
+    if (!part.colors) part.colors = defaultColorsFor(selected);
+    part.colors[slot] = normalizeHex(hex, part.colors[slot]);
     persistActive();
   }
 
@@ -569,7 +698,7 @@
     });
   }
 
-  buildColorMenu();
+  buildColorDots();
   applyAllTransforms();
   buildClockFace();
   renderCalendar(new Date());
@@ -587,7 +716,7 @@
 
   /* —— Install PWA (come TagImpianto / MyMenu) —— */
   const INSTALL_URL = "https://francescomendosa-create.github.io/StandModeApp/";
-  const APP_VERSION = "1.0.2";
+  const APP_VERSION = "1.0.3";
   const btnInstall = document.getElementById("btnInstall");
   const installBar = document.getElementById("installBar");
   const installHint = document.getElementById("installHint");
