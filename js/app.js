@@ -21,7 +21,9 @@
   const zoomIn = document.getElementById("zoomIn");
   const zoomOut = document.getElementById("zoomOut");
   const colorMenu = document.getElementById("colorMenu");
-  const colorTabsEl = document.getElementById("colorTabs");
+  const colorSlotTitle = document.getElementById("colorSlotTitle");
+  const colorSlotPrev = document.getElementById("colorSlotPrev");
+  const colorSlotNext = document.getElementById("colorSlotNext");
   const colorDotsEl = document.getElementById("colorDots");
   const weatherIcon = document.getElementById("weatherIcon");
   const weatherTemp = document.getElementById("weatherTemp");
@@ -82,7 +84,7 @@
   const ZOOM_STEP = 0.02;
   const ZOOM_MIN = 0.55;
   const ZOOM_MAX = 1.6;
-  const APP_VERSION = "1.1.0";
+  const APP_VERSION = "1.1.1";
   const INSTALL_URL = "https://francescomendosa-create.github.io/StandModeApp/";
 
   let layout = localStorage.getItem(LAYOUT_KEY) === "aura" ? "aura" : "classic";
@@ -252,17 +254,24 @@
   }
 
   function ensureByLayout(oriPrefs) {
-    if (oriPrefs.byLayout?.classic && oriPrefs.byLayout?.aura) return oriPrefs.byLayout;
-    oriPrefs.byLayout = {
-      classic: {
-        all: oriPrefs.all || defaultPart("all"),
-        clock: oriPrefs.clock || defaultPart("clock"),
-        date: oriPrefs.date || defaultPart("date"),
-        cal: oriPrefs.cal || defaultPart("cal"),
-        weather: oriPrefs.weather || defaultPart("weather"),
-      },
-      aura: makeAuraBundle(),
-    };
+    if (!oriPrefs.byLayout?.classic || !oriPrefs.byLayout?.aura) {
+      oriPrefs.byLayout = {
+        classic: {
+          all: oriPrefs.all || defaultPart("all"),
+          clock: oriPrefs.clock || defaultPart("clock"),
+          date: oriPrefs.date || defaultPart("date"),
+          cal: oriPrefs.cal || defaultPart("cal"),
+          weather: oriPrefs.weather || defaultPart("weather"),
+        },
+        aura: makeAuraBundle(),
+      };
+    }
+    // ripara bundle aura corrotto / colori invisibili
+    const aura = oriPrefs.byLayout.aura;
+    if (!aura.clock?.colors) aura.clock = makeAuraBundle().clock;
+    if (!aura.cal?.colors) aura.cal = makeAuraBundle().cal;
+    if (!aura.weather?.colors) aura.weather = makeAuraBundle().weather;
+    if (!aura.all) aura.all = defaultPart("all");
     return oriPrefs.byLayout;
   }
 
@@ -315,17 +324,13 @@
     el.style.setProperty("--part-zoom", String(Number(part.zoom.toFixed(3))));
 
     if (partName === "clock") {
-      const frameFb = layout === "aura" ? AURA_CLOCK_DEFAULTS.frame : "#ffffff";
-      const hourFb = layout === "aura" ? AURA_CLOCK_DEFAULTS.hour : "#ffffff";
-      const minFb = layout === "aura" ? AURA_CLOCK_DEFAULTS.minute : "#ffffff";
-      const secFb = layout === "aura" ? AURA_CLOCK_DEFAULTS.second : DEFAULT_ACCENT;
-      const numFb = layout === "aura" ? AURA_CLOCK_DEFAULTS.numbers : "#ffffff";
-      el.style.setProperty("--clock-frame", normalizeHex(c.frame, frameFb));
-      el.style.setProperty("--clock-hour", normalizeHex(c.hour, hourFb));
-      el.style.setProperty("--clock-minute", normalizeHex(c.minute, minFb));
-      el.style.setProperty("--clock-second", normalizeHex(c.second, secFb));
-      el.style.setProperty("--clock-numbers", normalizeHex(c.numbers, numFb));
-      el.style.setProperty("--accent-ink", inkFor(normalizeHex(c.second, secFb)));
+      const base = layout === "aura" ? { ...AURA_CLOCK_DEFAULTS, ...c } : c;
+      el.style.setProperty("--clock-frame", normalizeHex(base.frame, layout === "aura" ? "#111111" : "#ffffff"));
+      el.style.setProperty("--clock-hour", normalizeHex(base.hour, layout === "aura" ? "#111111" : "#ffffff"));
+      el.style.setProperty("--clock-minute", normalizeHex(base.minute, layout === "aura" ? "#111111" : "#ffffff"));
+      el.style.setProperty("--clock-second", normalizeHex(base.second, layout === "aura" ? "#ffffff" : DEFAULT_ACCENT));
+      el.style.setProperty("--clock-numbers", normalizeHex(base.numbers, layout === "aura" ? "#111111" : "#ffffff"));
+      el.style.setProperty("--accent-ink", inkFor(normalizeHex(base.second, layout === "aura" ? "#ffffff" : DEFAULT_ACCENT)));
     }
 
     if (partName === "date") {
@@ -588,8 +593,16 @@
   function setLayout(next) {
     layout = next === "aura" ? "aura" : "classic";
     document.body.dataset.layout = layout;
-    if (layoutClassic) layoutClassic.hidden = layout !== "classic";
-    if (layoutAura) layoutAura.hidden = layout !== "aura";
+    if (layoutClassic) {
+      layoutClassic.hidden = layout !== "classic";
+      layoutClassic.style.display = layout === "classic" ? "" : "none";
+    }
+    if (layoutAura) {
+      layoutAura.hidden = layout !== "aura";
+      layoutAura.style.display = layout === "aura" ? "grid" : "none";
+    }
+    // assicurati che le facce orologio siano costruite anche se prima erano nascoste
+    document.querySelectorAll(".clock-face").forEach(buildClockFace);
     lastDateKey = "";
     selected = null;
     document.querySelectorAll(".panel.is-selected").forEach((el) => el.classList.remove("is-selected"));
@@ -597,6 +610,7 @@
     savePrefs();
     applyAllTransforms();
     updateColorMenuVisibility();
+    softFit();
     if (layout === "aura") loadWeather();
   }
 
@@ -618,25 +632,22 @@
     });
   }
 
-  function rebuildColorTabs() {
-    if (!colorTabsEl) return;
-    colorTabsEl.replaceChildren();
+  function syncColorSlotTitle() {
+    if (!colorSlotTitle) return;
     const tabs = tabsForSelected();
     const active = currentColorSlot();
-    tabs.forEach((tab) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "color-tab" + (tab.id === active ? " is-active" : "");
-      btn.textContent = tab.label;
-      btn.addEventListener("pointerdown", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        colorSlot = tab.id;
-        rebuildColorTabs();
-        syncColorDots();
-      });
-      colorTabsEl.appendChild(btn);
-    });
+    const tab = tabs.find((t) => t.id === active);
+    colorSlotTitle.textContent = tab?.label || "Colore";
+  }
+
+  function shiftColorSlot(dir) {
+    const tabs = tabsForSelected();
+    if (!tabs.length) return;
+    const idx = Math.max(0, tabs.findIndex((t) => t.id === currentColorSlot()));
+    const next = tabs[(idx + dir + tabs.length) % tabs.length];
+    colorSlot = next.id;
+    syncColorSlotTitle();
+    syncColorDots();
   }
 
   function syncColorDots() {
@@ -649,7 +660,7 @@
 
   function syncColorUi() {
     if (!colorMenu || colorMenu.hidden) return;
-    rebuildColorTabs();
+    syncColorSlotTitle();
     syncColorDots();
   }
 
@@ -659,10 +670,21 @@
     colorMenu.hidden = !show;
     if (show) {
       colorSlot = tabsForSelected()[0]?.id || null;
-      rebuildColorTabs();
+      syncColorSlotTitle();
       syncColorDots();
     }
   }
+
+  colorSlotPrev?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    shiftColorSlot(-1);
+  });
+  colorSlotNext?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    shiftColorSlot(1);
+  });
 
   function setActiveColor(hex) {
     if (!selected) return;
@@ -827,9 +849,10 @@
       const vh = vv?.height ?? window.innerHeight;
       const sw = stand.scrollWidth;
       const sh = stand.scrollHeight;
-      if (sw <= vw + 1 && sh <= vh + 1) return;
-      const s = Math.min(vw / sw, vh / sh) * 0.98;
-      if (s < 0.999) stand.style.setProperty("--fit", String(Number(s.toFixed(4))));
+      if (sw <= vw + 2 && sh <= vh + 2) return;
+      // solo se sfora davvero; mai ridimensionare aggressivo su tablet
+      const s = Math.min(1, (vw / sw) * 0.99, (vh / sh) * 0.99);
+      if (s < 0.97) stand.style.setProperty("--fit", String(Number(s.toFixed(4))));
     });
   }
 

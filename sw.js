@@ -1,4 +1,4 @@
-const CACHE = "standmode-v12";
+const CACHE = "standmode-v13";
 const ASSETS = [
   "./",
   "./index.html",
@@ -10,12 +10,17 @@ const ASSETS = [
   "./icons/apple-touch-icon.png",
 ];
 
-function isManifestOrHtml(url) {
+function isShell(url) {
+  const p = url.pathname;
   return (
-    url.pathname.endsWith(".webmanifest") ||
-    url.pathname.endsWith("/index.html") ||
-    url.pathname.endsWith("/StandMode/") ||
-    url.pathname.endsWith("/StandMode")
+    p.endsWith(".webmanifest") ||
+    p.endsWith(".html") ||
+    p.endsWith(".css") ||
+    p.endsWith(".js") ||
+    p.endsWith("/StandMode/") ||
+    p.endsWith("/StandMode") ||
+    p.endsWith("/StandModeApp/") ||
+    p.endsWith("/StandModeApp")
   );
 }
 
@@ -38,8 +43,8 @@ self.addEventListener("fetch", (event) => {
   if (req.method !== "GET") return;
   const url = new URL(req.url);
 
-  // Manifest / HTML: rete prima così Chrome vede l'installabilità aggiornata
-  if (isManifestOrHtml(url)) {
+  // HTML/CSS/JS/manifest: rete prima → aggiornamenti Android affidabili
+  if (isShell(url)) {
     event.respondWith(
       fetch(req)
         .then((res) => {

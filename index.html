@@ -9,13 +9,13 @@
   <meta name="theme-color" content="#000000" />
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <title>StandMode</title>
-  <link rel="stylesheet" href="css/styles.css?v=1.1.0" />
-  <link rel="manifest" href="manifest.webmanifest?v=1.1.0" />
+  <link rel="stylesheet" href="css/styles.css?v=1.1.1" />
+  <link rel="manifest" href="manifest.webmanifest?v=1.1.1" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <script>
     (function () {
-      var V = "1.1.0";
+      var V = "1.1.1";
       var flag = "sm-sw-purge-" + V;
       if (sessionStorage.getItem(flag)) return;
       if (!("serviceWorker" in navigator)) return;
@@ -76,7 +76,11 @@
   </div>
 
   <div class="color-menu" id="colorMenu" hidden aria-label="Colori">
-    <div class="color-tabs" id="colorTabs"></div>
+    <div class="color-slot-bar">
+      <button type="button" class="color-slot-nav" id="colorSlotPrev" aria-label="Precedente">‹</button>
+      <span class="color-slot-title" id="colorSlotTitle">Cornice</span>
+      <button type="button" class="color-slot-nav" id="colorSlotNext" aria-label="Successivo">›</button>
+    </div>
     <div class="color-dots" id="colorDots"></div>
   </div>
 
@@ -165,6 +169,6 @@
     </div>
   </main>
 
-  <script src="js/app.js?v=1.1.0"></script>
+  <script src="js/app.js?v=1.1.1"></script>
 </body>
 </html>

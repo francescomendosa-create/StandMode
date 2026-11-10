@@ -125,11 +125,12 @@ body[data-layout="aura"] .stand {
 }
 
 .layout-aura .clock {
-  width: min(100%, 92vh);
+  width: min(96%, min(88vh, 920px));
+  max-width: 100%;
 }
 
 .layout-aura .clock-bg {
-  fill: transparent;
+  fill: color-mix(in srgb, var(--aura-bg) 88%, #000 12%);
 }
 
 .layout-aura .cal {
@@ -376,7 +377,7 @@ body.is-standalone .install-bar {
   display: none !important;
 }
 
-/* Palette colori (basso sinistra, con parte selezionata) */
+/* Palette colori compatta: un titolo alla volta + pallini */
 .color-menu {
   position: fixed;
   left: calc(10px + var(--safe-l));
@@ -385,10 +386,10 @@ body.is-standalone .install-bar {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-width: min(92vw, 280px);
-  padding: 10px;
+  width: min(210px, 46vw);
+  padding: 8px;
   border-radius: 14px;
-  background: rgba(20, 20, 20, 0.78);
+  background: rgba(12, 12, 12, 0.82);
   border: 1px solid rgba(255, 255, 255, 0.12);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
@@ -398,49 +399,61 @@ body.is-standalone .install-bar {
   display: none !important;
 }
 
-.color-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+.color-slot-bar {
+  display: grid;
+  grid-template-columns: 28px 1fr 28px;
+  align-items: center;
+  gap: 4px;
 }
 
-.color-tab {
-  border: 0;
-  border-radius: 999px;
-  padding: 6px 10px;
+.color-slot-title {
+  text-align: center;
   font-size: 11px;
-  font-weight: 650;
-  letter-spacing: 0.02em;
-  color: #ddd;
-  background: rgba(255, 255, 255, 0.08);
-  cursor: pointer;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #f0f0f0;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.color-tab.is-active {
-  color: #1a1208;
-  background: var(--accent);
+.color-slot-nav {
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--accent);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.color-slot-nav:active {
+  background: rgba(197, 154, 99, 0.28);
 }
 
 .color-dots {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
 }
 
 .color-dot {
-  width: 28px;
-  height: 28px;
+  width: 22px;
+  height: 22px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.22);
   padding: 0;
   cursor: pointer;
   background: var(--dot, #fff);
+  justify-self: center;
 }
 
 .color-dot.is-active {
   border-color: #fff;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.28);
 }
 
 .color-dot:active {
@@ -721,18 +734,18 @@ body.adj-open .panel.is-selected .part-inner {
   font-weight: 650;
 }
 
-/* Portrait fallback */
-@media (orientation: portrait) {
+/* Portrait / tablet stretto */
+@media (orientation: portrait), (max-width: 900px) and (orientation: landscape) {
   .layout-classic {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
     justify-items: center;
     align-content: center;
-    gap: 3.5vh;
+    gap: 2.4vh;
   }
 
   .layout-classic .clock {
-    width: min(58vw, 42vh);
+    width: min(52vw, 38vh);
   }
 
   .layout-classic .date-panel {
@@ -742,22 +755,24 @@ body.adj-open .panel.is-selected .part-inner {
   }
 
   .layout-classic .date-top {
-    font-size: clamp(1.8rem, 6vw, 2.6rem);
+    font-size: clamp(1.6rem, 5vw, 2.4rem);
   }
 
   .layout-classic .date-day {
-    font-size: clamp(5.5rem, 22vw, 9rem);
+    font-size: clamp(4.8rem, 18vw, 8rem);
   }
 
   .layout-classic .cal {
-    width: min(78vw, 340px);
+    width: min(72vw, 320px);
   }
+}
 
+@media (orientation: portrait) {
   .layout-aura {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
     justify-items: center;
-    gap: 2.2vh;
+    gap: 2vh;
   }
 
   .layout-aura .weather-panel,
@@ -768,6 +783,26 @@ body.adj-open .panel.is-selected .part-inner {
   }
 
   .layout-aura .clock {
-    width: min(72vw, 48vh);
+    width: min(70vw, 46vh);
+  }
+}
+
+/* Tablet landscape: evita orologio enorme / overflow */
+@media (orientation: landscape) and (min-width: 900px) {
+  .layout-classic {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.9fr) minmax(0, 1fr);
+    gap: clamp(12px, 2vw, 28px);
+  }
+
+  .layout-classic .clock {
+    width: min(92%, 72vh);
+  }
+
+  .layout-aura {
+    grid-template-columns: minmax(220px, 0.85fr) minmax(0, 1.35fr);
+  }
+
+  .layout-aura .clock {
+    width: min(100%, 78vh);
   }
 }
