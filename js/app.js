@@ -139,11 +139,98 @@
     requestAnimationFrame(tick);
   }
 
-  function unlockAudioGesture() {
-    // placeholder per futuri suoni / wake; tap evita sleep aggressivo in alcuni browser
+  const stand = document.getElementById("stand");
+  const nudgeMenu = document.getElementById("nudgeMenu");
+  const nudgeUp = document.getElementById("nudgeUp");
+  const nudgeDown = document.getElementById("nudgeDown");
+  const NUDGE_KEY = "standmode-nudge-y";
+  const NUDGE_STEP = 2; // px millimetrici
+  let nudgeY = Number(localStorage.getItem(NUDGE_KEY) || 0) || 0;
+  let holdTimer = 0;
+  let holdRepeat = 0;
+  let longPressTimer = 0;
+  let longPressFired = false;
+
+  function applyNudge() {
+    if (!stand) return;
+    stand.style.setProperty("--nudge-y", `${nudgeY}px`);
+    localStorage.setItem(NUDGE_KEY, String(nudgeY));
   }
 
-  document.addEventListener("pointerdown", unlockAudioGesture, { passive: true });
+  function shiftNudge(delta) {
+    nudgeY += delta;
+    applyNudge();
+  }
+
+  function openNudgeMenu() {
+    if (!nudgeMenu) return;
+    nudgeMenu.hidden = false;
+  }
+
+  function closeNudgeMenu() {
+    if (!nudgeMenu) return;
+    nudgeMenu.hidden = true;
+  }
+
+  function startHold(delta) {
+    shiftNudge(delta);
+    clearTimeout(holdTimer);
+    clearInterval(holdRepeat);
+    holdTimer = setTimeout(() => {
+      holdRepeat = setInterval(() => shiftNudge(delta), 40);
+    }, 280);
+  }
+
+  function stopHold() {
+    clearTimeout(holdTimer);
+    clearInterval(holdRepeat);
+  }
+
+  nudgeUp?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startHold(-NUDGE_STEP);
+  });
+  nudgeDown?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    startHold(NUDGE_STEP);
+  });
+  ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => {
+    nudgeUp?.addEventListener(ev, stopHold);
+    nudgeDown?.addEventListener(ev, stopHold);
+  });
+
+  // Blocca menu sistema (incolla / callout)
+  document.addEventListener("contextmenu", (e) => {
+    e.preventDefault();
+    openNudgeMenu();
+  });
+  document.addEventListener("selectstart", (e) => e.preventDefault());
+
+  document.addEventListener("pointerdown", (e) => {
+    if (nudgeMenu && !nudgeMenu.hidden && !nudgeMenu.contains(e.target)) {
+      // tap fuori: chiudi (non durante long-press sul contenuto)
+    }
+    longPressFired = false;
+    clearTimeout(longPressTimer);
+    if (nudgeMenu?.contains(e.target)) return;
+    longPressTimer = setTimeout(() => {
+      longPressFired = true;
+      openNudgeMenu();
+    }, 480);
+  }, { passive: true });
+
+  document.addEventListener("pointerup", (e) => {
+    clearTimeout(longPressTimer);
+    if (longPressFired) return;
+    if (nudgeMenu && !nudgeMenu.hidden && !nudgeMenu.contains(e.target)) {
+      closeNudgeMenu();
+    }
+  }, { passive: true });
+
+  document.addEventListener("pointercancel", () => clearTimeout(longPressTimer), { passive: true });
+
   document.addEventListener("dblclick", (e) => {
     e.preventDefault();
     const el = document.documentElement;
@@ -156,7 +243,6 @@
 
   // Solo se qualcosa esce dallo schermo: riduci di poco, altrimenti resta 1 (come prima)
   function softFit() {
-    const stand = document.getElementById("stand");
     if (!stand) return;
     stand.style.setProperty("--fit", "1");
     requestAnimationFrame(() => {
@@ -171,6 +257,7 @@
     });
   }
 
+  applyNudge();
   buildClockFace();
   renderCalendar(new Date());
   softFit();
