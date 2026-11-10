@@ -141,19 +141,69 @@
 
   const stand = document.getElementById("stand");
   const nudgeMenu = document.getElementById("nudgeMenu");
+  const nudgeMenuLR = document.getElementById("nudgeMenuLR");
   const zoomMenu = document.getElementById("zoomMenu");
   const nudgeUp = document.getElementById("nudgeUp");
   const nudgeDown = document.getElementById("nudgeDown");
+  const nudgeLeft = document.getElementById("nudgeLeft");
+  const nudgeRight = document.getElementById("nudgeRight");
   const zoomIn = document.getElementById("zoomIn");
   const zoomOut = document.getElementById("zoomOut");
-  const PREFS_KEY = "standmode-prefs-v1";
-  const NUDGE_STEP = 2; // px millimetrici
-  const ZOOM_STEP = 0.02; // passi piccoli proporzionati
-  const ZOOM_MIN = 0.7;
-  const ZOOM_MAX = 1.35;
+  const partEls = {
+    clock: document.querySelector('[data-part="clock"]'),
+    date: document.querySelector('[data-part="date"]'),
+    cal: document.querySelector('[data-part="cal"]'),
+  };
+
+  const PREFS_KEY = "standmode-prefs-v2";
+  const PREFS_KEY_V1 = "standmode-prefs-v1";
+  const PARTS = ["all", "clock", "date", "cal"];
+  const NUDGE_STEP = 2;
+  const ZOOM_STEP = 0.02;
+  const ZOOM_MIN = 0.55;
+  const ZOOM_MAX = 1.6;
 
   function clampZoom(z) {
     return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(z) || 1));
+  }
+
+  function defaultPart() {
+    return { nudgeX: 0, nudgeY: 0, zoom: 1 };
+  }
+
+  function defaultOrientation() {
+    return {
+      all: defaultPart(),
+      clock: defaultPart(),
+      date: defaultPart(),
+      cal: defaultPart(),
+    };
+  }
+
+  function normalizePart(raw) {
+    return {
+      nudgeX: Number(raw?.nudgeX) || 0,
+      nudgeY: Number(raw?.nudgeY) || 0,
+      zoom: clampZoom(raw?.zoom ?? 1),
+    };
+  }
+
+  function normalizeOrientation(raw) {
+    // v1: { nudgeY, zoom } senza parti
+    if (raw && (raw.nudgeY != null || raw.zoom != null) && !raw.all) {
+      const base = defaultOrientation();
+      base.all = normalizePart({
+        nudgeX: raw.nudgeX || 0,
+        nudgeY: raw.nudgeY || 0,
+        zoom: raw.zoom ?? 1,
+      });
+      return base;
+    }
+    const base = defaultOrientation();
+    for (const key of PARTS) {
+      base[key] = normalizePart(raw?.[key]);
+    }
+    return base;
   }
 
   function currentOrientation() {
@@ -163,119 +213,132 @@
     return w >= h ? "landscape" : "portrait";
   }
 
-  function defaultModePrefs() {
-    return { nudgeY: 0, zoom: 1 };
-  }
-
   function loadAllPrefs() {
     const empty = {
-      landscape: defaultModePrefs(),
-      portrait: defaultModePrefs(),
+      landscape: defaultOrientation(),
+      portrait: defaultOrientation(),
     };
     try {
-      const raw = localStorage.getItem(PREFS_KEY);
+      const raw = localStorage.getItem(PREFS_KEY) || localStorage.getItem(PREFS_KEY_V1);
       if (raw) {
         const parsed = JSON.parse(raw);
         return {
-          landscape: {
-            nudgeY: Number(parsed?.landscape?.nudgeY) || 0,
-            zoom: clampZoom(parsed?.landscape?.zoom ?? 1),
-          },
-          portrait: {
-            nudgeY: Number(parsed?.portrait?.nudgeY) || 0,
-            zoom: clampZoom(parsed?.portrait?.zoom ?? 1),
-          },
+          landscape: normalizeOrientation(parsed?.landscape),
+          portrait: normalizeOrientation(parsed?.portrait),
         };
       }
     } catch (_) { /* ignore */ }
 
-    // migrazione chiavi vecchie (unica per entrambe le orientazioni)
     const legacyNudge = Number(localStorage.getItem("standmode-nudge-y") || 0) || 0;
     const legacyZoom = clampZoom(localStorage.getItem("standmode-zoom") || 1);
     if (legacyNudge !== 0 || legacyZoom !== 1) {
-      empty.landscape = { nudgeY: legacyNudge, zoom: legacyZoom };
-      empty.portrait = { nudgeY: legacyNudge, zoom: legacyZoom };
+      empty.landscape.all = { nudgeX: 0, nudgeY: legacyNudge, zoom: legacyZoom };
+      empty.portrait.all = { nudgeX: 0, nudgeY: legacyNudge, zoom: legacyZoom };
     }
     return empty;
   }
 
   const prefs = loadAllPrefs();
   let mode = currentOrientation();
-  let nudgeY = prefs[mode].nudgeY;
-  let zoom = prefs[mode].zoom;
+  let selected = null; // null = tutto il contenuto
   let holdTimer = 0;
   let holdRepeat = 0;
   let longPressTimer = 0;
   let longPressFired = false;
 
+  function activeKey() {
+    return selected || "all";
+  }
+
+  function activePart() {
+    return prefs[mode][activeKey()];
+  }
+
   function isAdjTarget(target) {
     return Boolean(
       (nudgeMenu && nudgeMenu.contains(target)) ||
+      (nudgeMenuLR && nudgeMenuLR.contains(target)) ||
       (zoomMenu && zoomMenu.contains(target))
     );
   }
 
   function savePrefs() {
-    prefs[mode] = {
-      nudgeY,
-      zoom: clampZoom(zoom),
-    };
     localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
   }
 
-  function applyNudge() {
-    if (!stand) return;
-    stand.style.setProperty("--nudge-y", `${nudgeY}px`);
-    savePrefs();
+  function paintPart(el, part) {
+    if (!el) return;
+    el.style.setProperty("--part-x", `${part.nudgeX}px`);
+    el.style.setProperty("--part-y", `${part.nudgeY}px`);
+    el.style.setProperty("--part-zoom", String(Number(part.zoom.toFixed(3))));
   }
 
-  function applyZoom() {
+  function applyAllTransforms() {
     if (!stand) return;
-    zoom = clampZoom(zoom);
-    stand.style.setProperty("--zoom", String(Number(zoom.toFixed(3))));
-    savePrefs();
+    const all = prefs[mode].all;
+    stand.style.setProperty("--nudge-x", `${all.nudgeX}px`);
+    stand.style.setProperty("--nudge-y", `${all.nudgeY}px`);
+    stand.style.setProperty("--zoom", String(Number(all.zoom.toFixed(3))));
+    paintPart(partEls.clock, prefs[mode].clock);
+    paintPart(partEls.date, prefs[mode].date);
+    paintPart(partEls.cal, prefs[mode].cal);
   }
 
-  function applyModePrefs() {
-    nudgeY = prefs[mode].nudgeY;
-    zoom = clampZoom(prefs[mode].zoom);
-    if (!stand) return;
-    stand.style.setProperty("--nudge-y", `${nudgeY}px`);
-    stand.style.setProperty("--zoom", String(Number(zoom.toFixed(3))));
+  function persistActive() {
+    savePrefs();
+    applyAllTransforms();
+  }
+
+  function shiftNudge(dx, dy) {
+    const part = activePart();
+    part.nudgeX += dx;
+    part.nudgeY += dy;
+    persistActive();
+  }
+
+  function shiftZoom(delta) {
+    const part = activePart();
+    part.zoom = clampZoom(part.zoom + delta);
+    persistActive();
+  }
+
+  function setSelection(partName) {
+    selected = partName;
+    document.querySelectorAll(".panel.is-selected").forEach((el) => el.classList.remove("is-selected"));
+    if (partName && partEls[partName]) {
+      partEls[partName].classList.add("is-selected");
+    }
+  }
+
+  function openAdjMenus() {
+    document.body.classList.add("adj-open");
+    if (nudgeMenu) nudgeMenu.hidden = false;
+    if (nudgeMenuLR) nudgeMenuLR.hidden = false;
+    if (zoomMenu) zoomMenu.hidden = false;
+  }
+
+  function closeAdjMenus() {
+    document.body.classList.remove("adj-open");
+    if (nudgeMenu) nudgeMenu.hidden = true;
+    if (nudgeMenuLR) nudgeMenuLR.hidden = true;
+    if (zoomMenu) zoomMenu.hidden = true;
+    setSelection(null);
+  }
+
+  function menusOpen() {
+    return (
+      (nudgeMenu && !nudgeMenu.hidden) ||
+      (nudgeMenuLR && !nudgeMenuLR.hidden) ||
+      (zoomMenu && !zoomMenu.hidden)
+    );
   }
 
   function syncOrientationPrefs() {
     const next = currentOrientation();
     if (next === mode) return;
-    // salva quella corrente prima di cambiare
-    prefs[mode] = { nudgeY, zoom: clampZoom(zoom) };
-    localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    savePrefs();
     mode = next;
-    applyModePrefs();
-  }
-
-  function shiftNudge(delta) {
-    nudgeY += delta;
-    applyNudge();
-  }
-
-  function shiftZoom(delta) {
-    zoom = clampZoom(zoom + delta);
-    applyZoom();
-  }
-
-  function openAdjMenus() {
-    if (nudgeMenu) nudgeMenu.hidden = false;
-    if (zoomMenu) zoomMenu.hidden = false;
-  }
-
-  function closeAdjMenus() {
-    if (nudgeMenu) nudgeMenu.hidden = true;
-    if (zoomMenu) zoomMenu.hidden = true;
-  }
-
-  function menusOpen() {
-    return (nudgeMenu && !nudgeMenu.hidden) || (zoomMenu && !zoomMenu.hidden);
+    applyAllTransforms();
   }
 
   function startHold(fn) {
@@ -292,32 +355,33 @@
     clearInterval(holdRepeat);
   }
 
-  nudgeUp?.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    startHold(() => shiftNudge(-NUDGE_STEP));
-  });
-  nudgeDown?.addEventListener("pointerdown", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    startHold(() => shiftNudge(NUDGE_STEP));
-  });
+  function bindHold(el, fn) {
+    el?.addEventListener("pointerdown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      startHold(fn);
+    });
+    ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => {
+      el?.addEventListener(ev, stopHold);
+    });
+  }
+
+  bindHold(nudgeUp, () => shiftNudge(0, -NUDGE_STEP));
+  bindHold(nudgeDown, () => shiftNudge(0, NUDGE_STEP));
+  bindHold(nudgeLeft, () => shiftNudge(-NUDGE_STEP, 0));
+  bindHold(nudgeRight, () => shiftNudge(NUDGE_STEP, 0));
+
   zoomIn?.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
-    shiftZoom(ZOOM_STEP); // un piccolo passo per pressione
+    shiftZoom(ZOOM_STEP);
   });
   zoomOut?.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     e.stopPropagation();
     shiftZoom(-ZOOM_STEP);
   });
-  ["pointerup", "pointercancel", "pointerleave"].forEach((ev) => {
-    nudgeUp?.addEventListener(ev, stopHold);
-    nudgeDown?.addEventListener(ev, stopHold);
-  });
 
-  // Blocca menu sistema (incolla / callout)
   document.addEventListener("contextmenu", (e) => {
     e.preventDefault();
     openAdjMenus();
@@ -337,9 +401,18 @@
   document.addEventListener("pointerup", (e) => {
     clearTimeout(longPressTimer);
     if (longPressFired) return;
-    if (menusOpen() && !isAdjTarget(e.target)) {
-      closeAdjMenus();
+    if (!menusOpen()) return;
+    if (isAdjTarget(e.target)) return;
+
+    const partEl = e.target.closest?.("[data-part]");
+    if (partEl) {
+      const name = partEl.getAttribute("data-part");
+      // secondo tap sulla stessa parte → deseleziona (torna a tutto)
+      setSelection(selected === name ? null : name);
+      return;
     }
+
+    closeAdjMenus();
   }, { passive: true });
 
   document.addEventListener("pointercancel", () => clearTimeout(longPressTimer), { passive: true });
@@ -354,7 +427,6 @@
     }
   });
 
-  // Solo se qualcosa esce dallo schermo: riduci di poco, altrimenti resta 1 (come prima)
   function softFit() {
     if (!stand) return;
     stand.style.setProperty("--fit", "1");
@@ -370,7 +442,7 @@
     });
   }
 
-  applyModePrefs();
+  applyAllTransforms();
   buildClockFace();
   renderCalendar(new Date());
   softFit();
