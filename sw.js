@@ -1,4 +1,4 @@
-const CACHE = "standmode-v2";
+const CACHE = "standmode-v3";
 const ASSETS = [
   "./",
   "./index.html",
