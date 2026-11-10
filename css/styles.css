@@ -1,0 +1,239 @@
+:root {
+  --bg: #050505;
+  --clock-bg: #000000;
+  --fg: #ffffff;
+  --muted: #8a8a8a;
+  --accent: #c59a63;
+  --accent-ink: #1a1208;
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: "SF Pro Display", "SF Pro Text", -apple-system, BlinkMacSystemFont,
+    "Segoe UI", system-ui, sans-serif;
+  user-select: none;
+  touch-action: none;
+}
+
+body {
+  /* mesh / carbon fine */
+  background-color: #000;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+.stand {
+  width: 100%;
+  height: 100%;
+  min-height: 100dvh;
+  padding:
+    calc(1.2vh + var(--safe-t))
+    calc(1.6vw + var(--safe-r))
+    calc(1.2vh + var(--safe-b))
+    calc(1.6vw + var(--safe-l));
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr) minmax(0, 1.05fr);
+  align-items: center;
+  justify-items: stretch;
+  gap: clamp(1vw, 2.2vw, 3.2vw);
+}
+
+.panel {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* —— Clock —— */
+.clock-panel {
+  justify-content: flex-end;
+}
+
+.clock {
+  width: min(96%, 92vh);
+  aspect-ratio: 1;
+}
+
+.clock-face {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.clock-bg {
+  fill: var(--clock-bg);
+}
+
+.tick {
+  stroke: var(--fg);
+  stroke-linecap: round;
+}
+
+.tick-minute {
+  stroke-width: 1.1;
+  opacity: 0.92;
+}
+
+.tick-hour {
+  stroke-width: 2.4;
+}
+
+.num {
+  fill: var(--fg);
+  font-size: 28px;
+  font-weight: 500;
+  text-anchor: middle;
+  dominant-baseline: central;
+  letter-spacing: -0.02em;
+}
+
+.hub-outer {
+  fill: var(--accent);
+}
+
+.hub-inner {
+  fill: #2a2116;
+}
+
+/* —— Large date —— */
+.date-panel {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding-left: clamp(0.2vw, 1vw, 1.6vw);
+}
+
+.date-top {
+  display: flex;
+  gap: 0.28em;
+  font-size: clamp(2.8rem, 11vh, 6.4rem);
+  font-weight: 560;
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+
+.date-weekday {
+  color: var(--accent);
+}
+
+.date-month-short {
+  color: #b0b0b0;
+}
+
+.date-day {
+  margin-top: -0.04em;
+  font-size: clamp(8rem, 36vh, 22rem);
+  font-weight: 620;
+  line-height: 0.86;
+  letter-spacing: -0.045em;
+  color: var(--fg);
+}
+
+/* —— Calendar —— */
+.cal-panel {
+  justify-content: flex-start;
+  padding-left: clamp(0.5vw, 1.5vw, 2.5vw);
+}
+
+.cal {
+  width: min(100%, 52vh * 1.2);
+  display: flex;
+  flex-direction: column;
+  gap: 1.4vh;
+}
+
+.cal-title {
+  color: var(--accent);
+  font-size: clamp(1rem, 3.2vh, 1.55rem);
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 0.5vh;
+}
+
+.cal-weekdays,
+.cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.35vh 0.2vw;
+}
+
+.cal-weekdays span {
+  text-align: center;
+  color: var(--muted);
+  font-size: clamp(0.85rem, 2.5vh, 1.25rem);
+  font-weight: 500;
+}
+
+.cal-cell {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  color: var(--fg);
+  font-size: clamp(0.95rem, 2.9vh, 1.45rem);
+  font-weight: 500;
+  border-radius: 50%;
+}
+
+.cal-cell.is-empty {
+  visibility: hidden;
+}
+
+.cal-cell.is-today {
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 650;
+}
+
+/* Portrait fallback: stack briefly / hint landscape */
+@media (orientation: portrait) {
+  .stand {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    justify-items: center;
+    align-content: center;
+    gap: 3.5vh;
+    padding-block: 4vh;
+  }
+
+  .clock {
+    width: min(58vw, 42vh);
+  }
+
+  .date-panel {
+    align-items: center;
+    padding-left: 0;
+    text-align: center;
+  }
+
+  .date-top {
+    font-size: clamp(1.8rem, 6vw, 2.6rem);
+  }
+
+  .date-day {
+    font-size: clamp(5.5rem, 22vw, 9rem);
+  }
+
+  .cal {
+    width: min(78vw, 340px);
+  }
+}
