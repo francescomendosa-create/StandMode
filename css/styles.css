@@ -125,6 +125,46 @@ body.is-standalone .install-bar {
   display: none !important;
 }
 
+/* Palette colori (basso sinistra, con parte selezionata) */
+.color-menu {
+  position: fixed;
+  left: calc(10px + var(--safe-l));
+  bottom: calc(10px + var(--safe-b));
+  z-index: 50;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  background: rgba(20, 20, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.color-menu[hidden] {
+  display: none !important;
+}
+
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  padding: 0;
+  cursor: pointer;
+  background: var(--dot, #fff);
+}
+
+.color-dot.is-active {
+  border-color: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.25);
+}
+
+.color-dot:active {
+  transform: scale(0.92);
+}
+
 /* Menu adattamento (momentaneo) */
 .zoom-menu,
 .nudge-menu {
@@ -203,6 +243,10 @@ body.adj-open .panel.is-selected .part-inner {
   --part-x: 0px;
   --part-y: 0px;
   --part-zoom: 1;
+  --accent: #c59a63;
+  --muted: #8a8a8a;
+  --accent-ink: #1a1208;
+  --month-muted: #b0b0b0;
   min-width: 0;
   display: flex;
   align-items: center;
@@ -272,12 +316,20 @@ body.adj-open .panel.is-selected .part-inner {
   letter-spacing: -0.02em;
 }
 
+.hand-fill {
+  fill: var(--fg);
+}
+
+.hand-second {
+  stroke: var(--accent);
+}
+
 .hub-outer {
   fill: var(--accent);
 }
 
 .hub-inner {
-  fill: #2a2116;
+  fill: var(--accent-ink);
 }
 
 /* —— Large date —— */
@@ -302,7 +354,7 @@ body.adj-open .panel.is-selected .part-inner {
 }
 
 .date-month-short {
-  color: #b0b0b0;
+  color: var(--month-muted);
 }
 
 .date-day {

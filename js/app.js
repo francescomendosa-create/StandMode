@@ -149,6 +149,7 @@
   const nudgeRight = document.getElementById("nudgeRight");
   const zoomIn = document.getElementById("zoomIn");
   const zoomOut = document.getElementById("zoomOut");
+  const colorMenu = document.getElementById("colorMenu");
   const partEls = {
     clock: document.querySelector('[data-part="clock"]'),
     date: document.querySelector('[data-part="date"]'),
@@ -158,6 +159,21 @@
   const PREFS_KEY = "standmode-prefs-v2";
   const PREFS_KEY_V1 = "standmode-prefs-v1";
   const PARTS = ["all", "clock", "date", "cal"];
+  const DEFAULT_COLOR = "#c59a63";
+  const COLOR_DOTS = [
+    "#c59a63", // oro (default)
+    "#ffffff",
+    "#e8e8e8",
+    "#fbbf24",
+    "#fb923c",
+    "#f87171",
+    "#f472b6",
+    "#c084fc",
+    "#60a5fa",
+    "#22d3ee",
+    "#4ade80",
+    "#a3e635",
+  ];
   const NUDGE_STEP = 2;
   const ZOOM_STEP = 0.02;
   const ZOOM_MIN = 0.55;
@@ -167,8 +183,62 @@
     return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Number(z) || 1));
   }
 
+  function normalizeHex(hex) {
+    const h = String(hex || "").trim();
+    if (/^#[0-9a-fA-F]{6}$/.test(h)) return h.toLowerCase();
+    if (/^#[0-9a-fA-F]{3}$/.test(h)) {
+      return `#${h[1]}${h[1]}${h[2]}${h[2]}${h[3]}${h[3]}`.toLowerCase();
+    }
+    return DEFAULT_COLOR;
+  }
+
+  function hexToRgb(hex) {
+    const h = normalizeHex(hex).slice(1);
+    return {
+      r: parseInt(h.slice(0, 2), 16),
+      g: parseInt(h.slice(2, 4), 16),
+      b: parseInt(h.slice(4, 6), 16),
+    };
+  }
+
+  function rgbToHex(r, g, b) {
+    const c = (n) => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, "0");
+    return `#${c(r)}${c(g)}${c(b)}`;
+  }
+
+  function mixHex(a, b, t) {
+    const A = hexToRgb(a);
+    const B = hexToRgb(b);
+    return rgbToHex(
+      A.r + (B.r - A.r) * t,
+      A.g + (B.g - A.g) * t,
+      A.b + (B.b - A.b) * t
+    );
+  }
+
+  function luminance(hex) {
+    const { r, g, b } = hexToRgb(hex);
+    const lin = (v) => {
+      const s = v / 255;
+      return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+    };
+    return 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+  }
+
+  function themeFromAccent(accent) {
+    const a = normalizeHex(accent);
+    return {
+      accent: a,
+      // settimana / etichette secondarie: accento smorzato verso grigio
+      muted: mixHex(a, "#8a8a8a", 0.55),
+      // mese corto (data): più chiaro/grigio come prima
+      monthMuted: mixHex(a, "#c8c8c8", 0.62),
+      accentInk: luminance(a) > 0.62 ? "#1a1208" : "#0b0b0b",
+    };
+  }
+
   function defaultPart() {
-    return { nudgeX: 0, nudgeY: 0, zoom: 1 };
+    return { nudgeX: 0, nudgeY: 0, zoom: 1, color: DEFAULT_COLOR };
   }
 
   function defaultOrientation() {
@@ -185,6 +255,7 @@
       nudgeX: Number(raw?.nudgeX) || 0,
       nudgeY: Number(raw?.nudgeY) || 0,
       zoom: clampZoom(raw?.zoom ?? 1),
+      color: normalizeHex(raw?.color || DEFAULT_COLOR),
     };
   }
 
@@ -258,7 +329,8 @@
     return Boolean(
       (nudgeMenu && nudgeMenu.contains(target)) ||
       (nudgeMenuLR && nudgeMenuLR.contains(target)) ||
-      (zoomMenu && zoomMenu.contains(target))
+      (zoomMenu && zoomMenu.contains(target)) ||
+      (colorMenu && colorMenu.contains(target))
     );
   }
 
@@ -268,9 +340,14 @@
 
   function paintPart(el, part) {
     if (!el) return;
+    const theme = themeFromAccent(part.color || DEFAULT_COLOR);
     el.style.setProperty("--part-x", `${part.nudgeX}px`);
     el.style.setProperty("--part-y", `${part.nudgeY}px`);
     el.style.setProperty("--part-zoom", String(Number(part.zoom.toFixed(3))));
+    el.style.setProperty("--accent", theme.accent);
+    el.style.setProperty("--muted", theme.muted);
+    el.style.setProperty("--month-muted", theme.monthMuted);
+    el.style.setProperty("--accent-ink", theme.accentInk);
   }
 
   function applyAllTransforms() {
@@ -282,6 +359,7 @@
     paintPart(partEls.clock, prefs[mode].clock);
     paintPart(partEls.date, prefs[mode].date);
     paintPart(partEls.cal, prefs[mode].cal);
+    syncColorDots();
   }
 
   function persistActive() {
@@ -302,12 +380,59 @@
     persistActive();
   }
 
+  function buildColorMenu() {
+    if (!colorMenu || colorMenu.childElementCount) return;
+    COLOR_DOTS.forEach((hex) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "color-dot";
+      btn.style.setProperty("--dot", hex);
+      btn.dataset.color = hex;
+      btn.setAttribute("aria-label", `Colore ${hex}`);
+      btn.addEventListener("pointerdown", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setActiveColor(hex);
+      });
+      colorMenu.appendChild(btn);
+    });
+  }
+
+  function syncColorDots() {
+    if (!colorMenu) return;
+    const current = normalizeHex(activePart().color || DEFAULT_COLOR);
+    colorMenu.querySelectorAll(".color-dot").forEach((btn) => {
+      btn.classList.toggle("is-active", normalizeHex(btn.dataset.color) === current);
+    });
+  }
+
+  function updateColorMenuVisibility() {
+    if (!colorMenu) return;
+    const show = menusOpen() && Boolean(selected);
+    colorMenu.hidden = !show;
+    if (show) syncColorDots();
+  }
+
+  function setActiveColor(hex) {
+    const key = activeKey();
+    if (key === "all") {
+      // senza selezione non dovrebbe arrivare qui; se arriva, applica a tutte le parti
+      for (const p of ["clock", "date", "cal"]) {
+        prefs[mode][p].color = normalizeHex(hex);
+      }
+    } else {
+      prefs[mode][key].color = normalizeHex(hex);
+    }
+    persistActive();
+  }
+
   function setSelection(partName) {
     selected = partName;
     document.querySelectorAll(".panel.is-selected").forEach((el) => el.classList.remove("is-selected"));
     if (partName && partEls[partName]) {
       partEls[partName].classList.add("is-selected");
     }
+    updateColorMenuVisibility();
   }
 
   function openAdjMenus() {
@@ -315,6 +440,7 @@
     if (nudgeMenu) nudgeMenu.hidden = false;
     if (nudgeMenuLR) nudgeMenuLR.hidden = false;
     if (zoomMenu) zoomMenu.hidden = false;
+    updateColorMenuVisibility();
   }
 
   function closeAdjMenus() {
@@ -322,6 +448,7 @@
     if (nudgeMenu) nudgeMenu.hidden = true;
     if (nudgeMenuLR) nudgeMenuLR.hidden = true;
     if (zoomMenu) zoomMenu.hidden = true;
+    if (colorMenu) colorMenu.hidden = true;
     setSelection(null);
   }
 
@@ -442,6 +569,7 @@
     });
   }
 
+  buildColorMenu();
   applyAllTransforms();
   buildClockFace();
   renderCalendar(new Date());
@@ -459,7 +587,7 @@
 
   /* —— Install PWA (come TagImpianto / MyMenu) —— */
   const INSTALL_URL = "https://francescomendosa-create.github.io/StandModeApp/";
-  const APP_VERSION = "1.0.1";
+  const APP_VERSION = "1.0.2";
   const btnInstall = document.getElementById("btnInstall");
   const installBar = document.getElementById("installBar");
   const installHint = document.getElementById("installHint");
