@@ -19,8 +19,57 @@
   const calGrid = document.getElementById("calGrid");
   const ticks = document.getElementById("ticks");
   const nums = document.getElementById("nums");
+  const root = document.documentElement;
+  const stage = document.getElementById("stage");
 
   let lastDateKey = "";
+  let fitRaf = 0;
+
+  function viewportSize() {
+    const vv = window.visualViewport;
+    // Misura reale usabile (iOS/Android: barre, notch, zoom)
+    const w = Math.round(vv?.width ?? window.innerWidth);
+    const h = Math.round(vv?.height ?? window.innerHeight);
+    return { w: Math.max(1, w), h: Math.max(1, h) };
+  }
+
+  function fitToDisplay() {
+    const { w, h } = viewportSize();
+    const landscape = w >= h;
+    root.dataset.orientation = landscape ? "landscape" : "portrait";
+
+    // Landscape leggermente più pieno; portrait un filo più arioso
+    const fill = landscape ? 0.96 : 0.92;
+    const padX = Math.max(6, Math.round(w * (landscape ? 0.018 : 0.04)));
+    const padY = Math.max(6, Math.round(h * (landscape ? 0.03 : 0.022)));
+
+    root.style.setProperty("--app-w", `${w}px`);
+    root.style.setProperty("--app-h", `${h}px`);
+    root.style.setProperty("--pad-x", `${padX}px`);
+    root.style.setProperty("--pad-y", `${padY}px`);
+    root.style.setProperty("--fit", "1");
+
+    // Dopo il layout, se qualcosa sforasse scala uniformemente
+    requestAnimationFrame(() => {
+      if (!stage) return;
+      const stand = document.getElementById("stand");
+      const boxW = stand?.clientWidth || w;
+      const boxH = stand?.clientHeight || h;
+      const sw = stage.scrollWidth || stage.offsetWidth;
+      const sh = stage.scrollHeight || stage.offsetHeight;
+      if (sw <= 0 || sh <= 0) return;
+      const scale = Math.min(1, (boxW * fill) / sw, (boxH * fill) / sh);
+      // Landscape: permetti un filo più grande (fino a 1.04 se c'è spazio)
+      const boost = landscape ? Math.min(1.04, Math.max(scale, scale * 1.03)) : scale;
+      const finalScale = Math.min(boost, (boxW * 0.995) / sw, (boxH * 0.995) / sh);
+      root.style.setProperty("--fit", String(Number(finalScale.toFixed(4))));
+    });
+  }
+
+  function scheduleFit() {
+    cancelAnimationFrame(fitRaf);
+    fitRaf = requestAnimationFrame(fitToDisplay);
+  }
 
   function buildClockFace() {
     const cx = 100;
@@ -156,7 +205,16 @@
 
   buildClockFace();
   renderCalendar(new Date());
+  scheduleFit();
   requestAnimationFrame(tick);
+
+  window.addEventListener("resize", scheduleFit, { passive: true });
+  window.addEventListener("orientationchange", () => setTimeout(scheduleFit, 50), { passive: true });
+  window.visualViewport?.addEventListener("resize", scheduleFit, { passive: true });
+  window.visualViewport?.addEventListener("scroll", scheduleFit, { passive: true });
+  if (window.ResizeObserver) {
+    new ResizeObserver(scheduleFit).observe(document.body);
+  }
 
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("./sw.js").catch(() => {});
